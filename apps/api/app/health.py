@@ -19,15 +19,20 @@ def compute_health_status(workflow: Workflow, counts: WorkflowCounts) -> str:
 
     Precedence (first match wins):
     - orphaned: deleted in n8n but still tracked here.
-    - unused: disabled in n8n, or enabled but never executed in the last 30d.
+    - unused: never executed in the last 30d.
     - silent: ran at some point in the last 30d, but nothing in the last 7 -
       it went quiet despite having a history of running.
     - failing: has run in the last 7d, and the most recent run errored.
     - healthy: has run in the last 7d, and the most recent run succeeded.
+
+    TEMPORARY: the `workflow.enabled` (n8n "active") check is disabled here
+    so manually-run, unpublished workflows still get evaluated/alerted on
+    during testing. Re-add `or not workflow.enabled` to the condition below
+    once testing is done, to go back to excluding unpublished workflows.
     """
     if workflow.is_orphaned:
         return ORPHANED
-    if not workflow.enabled or counts.run_count_30d == 0:
+    if counts.run_count_30d == 0:
         return UNUSED
     if counts.run_count_7d == 0:
         return SILENT
