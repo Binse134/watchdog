@@ -31,18 +31,27 @@ export default function ConnectionPage() {
   useEffect(() => {
     if (!user) return;
     let ignore = false;
-    fetchConnectionAndWorkflows(connectionId)
-      .then(({ connection, workflows }) => {
-        if (ignore) return;
-        setConnection(connection);
-        setWorkflows(workflows);
-      })
-      .catch((err) => {
-        if (ignore) return;
-        setError(err instanceof ApiError ? err.message : "Could not load this connection");
-      });
+
+    function load() {
+      fetchConnectionAndWorkflows(connectionId)
+        .then(({ connection, workflows }) => {
+          if (ignore) return;
+          setConnection(connection);
+          setWorkflows(workflows);
+        })
+        .catch((err) => {
+          if (ignore) return;
+          setError(err instanceof ApiError ? err.message : "Could not load this connection");
+        });
+    }
+
+    load();
+    // Background syncing happens server-side on its own schedule; poll so
+    // this view reflects it without requiring a manual reload or "Sync now".
+    const interval = setInterval(load, 15000);
     return () => {
       ignore = true;
+      clearInterval(interval);
     };
   }, [user, connectionId]);
 

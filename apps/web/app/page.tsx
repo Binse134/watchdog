@@ -42,16 +42,25 @@ export default function DashboardPage() {
   useEffect(() => {
     if (!user) return;
     let ignore = false;
-    api
-      .get<Connection[]>("/connections")
-      .then((data) => {
-        if (!ignore) setConnections(data);
-      })
-      .catch((err) => {
-        if (!ignore) setListError(err instanceof ApiError ? err.message : "Could not load connections");
-      });
+
+    function load() {
+      api
+        .get<Connection[]>("/connections")
+        .then((data) => {
+          if (!ignore) setConnections(data);
+        })
+        .catch((err) => {
+          if (!ignore) setListError(err instanceof ApiError ? err.message : "Could not load connections");
+        });
+    }
+
+    load();
+    // Background syncing happens server-side on its own schedule; poll so
+    // sync status reflects it without requiring a manual reload.
+    const interval = setInterval(load, 15000);
     return () => {
       ignore = true;
+      clearInterval(interval);
     };
   }, [user]);
 

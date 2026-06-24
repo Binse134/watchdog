@@ -23,16 +23,25 @@ export default function WorkflowDetailPage() {
   useEffect(() => {
     if (!user) return;
     let ignore = false;
-    api
-      .get<Workflow>(`/connections/${connectionId}/workflows/${workflowId}`)
-      .then((wf) => {
-        if (!ignore) setWorkflow(wf);
-      })
-      .catch((err) => {
-        if (!ignore) setError(err instanceof ApiError ? err.message : "Could not load this workflow");
-      });
+
+    function load() {
+      api
+        .get<Workflow>(`/connections/${connectionId}/workflows/${workflowId}`)
+        .then((wf) => {
+          if (!ignore) setWorkflow(wf);
+        })
+        .catch((err) => {
+          if (!ignore) setError(err instanceof ApiError ? err.message : "Could not load this workflow");
+        });
+    }
+
+    load();
+    // Background syncing happens server-side on its own schedule; poll so
+    // this view reflects it without requiring a manual reload.
+    const interval = setInterval(load, 15000);
     return () => {
       ignore = true;
+      clearInterval(interval);
     };
   }, [user, connectionId, workflowId]);
 
