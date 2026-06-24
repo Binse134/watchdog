@@ -1,0 +1,78 @@
+@import "tailwindcss";
+
+:root {
+  /* Instrument Panel design system - see DESIGN.md */
+  --color-bg: oklch(0.09 0 0);
+  --color-panel: oklch(0.155 0.004 48);
+  --color-panel-raised: oklch(0.21 0.004 48);
+  --color-hairline: oklch(0.26 0.004 48);
+  --color-ink: oklch(0.93 0.004 48);
+  --color-muted: oklch(0.62 0.006 48);
+
+  --color-primary: oklch(0.62 0.18 48);
+  --color-primary-hover: oklch(0.68 0.18 48);
+  --color-on-primary: #0a0a0a;
+  --color-accent: oklch(0.58 0.06 230);
+
+  --color-failing: oklch(0.58 0.21 25);
+  --color-silent: oklch(0.58 0.15 85);
+  --color-orphaned: oklch(0.6 0.16 300);
+  --color-healthy: oklch(0.68 0.13 152);
+  --color-on-status: #0a0a0a;
+
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-bg: var(--color-bg);
+  --color-panel: var(--color-panel);
+  --color-panel-raised: var(--color-panel-raised);
+  --color-hairline: var(--color-hairline);
+  --color-ink: var(--color-ink);
+  --color-muted: var(--color-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-accent: var(--color-accent);
+  --color-failing: var(--color-failing);
+  --color-silent: var(--color-silent);
+  --color-orphaned: var(--color-orphaned);
+  --color-healthy: var(--color-healthy);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+/* Focus ring: amber glow, consistent everywhere an interactive element gets focus */
+.focus-ring {
+  outline: none;
+}
+.focus-ring:focus-visible {
+  box-shadow:
+    0 0 0 2px var(--color-bg),
+    0 0 0 4px color-mix(in oklch, var(--color-primary) 60%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}

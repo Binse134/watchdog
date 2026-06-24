@@ -1,0 +1,131 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-24T00:00:00Z",
+  "title": "Design System: Watchdog",
+  "extensions": {
+    "colorMeta": {
+      "terminal-amber": { "role": "primary", "displayName": "Terminal Amber", "canonical": "oklch(0.62 0.18 48)", "tonalRamp": ["oklch(0.18 0.10 48)", "oklch(0.28 0.13 48)", "oklch(0.38 0.15 48)", "oklch(0.48 0.17 48)", "oklch(0.55 0.18 48)", "oklch(0.62 0.18 48)", "oklch(0.74 0.16 48)", "oklch(0.88 0.10 48)"] },
+      "instrument-blue": { "role": "secondary", "displayName": "Instrument Blue", "canonical": "oklch(0.58 0.06 230)", "tonalRamp": ["oklch(0.16 0.03 230)", "oklch(0.26 0.04 230)", "oklch(0.36 0.05 230)", "oklch(0.46 0.06 230)", "oklch(0.58 0.06 230)", "oklch(0.68 0.05 230)", "oklch(0.80 0.04 230)", "oklch(0.92 0.02 230)"] },
+      "near-black": { "role": "neutral", "displayName": "Near-Black", "canonical": "oklch(0.09 0 0)", "tonalRamp": ["oklch(0.05 0 0)", "oklch(0.09 0 0)", "oklch(0.155 0.004 48)", "oklch(0.21 0.004 48)", "oklch(0.30 0.004 48)", "oklch(0.45 0.004 48)", "oklch(0.62 0.006 48)", "oklch(0.93 0.004 48)"] },
+      "status-failing": { "role": "tertiary", "displayName": "Failing Red", "canonical": "oklch(0.58 0.21 25)" },
+      "status-silent": { "role": "tertiary", "displayName": "Silent Gold", "canonical": "oklch(0.58 0.15 85)" },
+      "status-orphaned": { "role": "tertiary", "displayName": "Orphaned Violet", "canonical": "oklch(0.60 0.16 300)" },
+      "status-healthy": { "role": "tertiary", "displayName": "Healthy Green", "canonical": "oklch(0.68 0.13 152)" }
+    },
+    "typographyMeta": {
+      "headline": { "displayName": "Headline", "purpose": "Page titles only (Connections, a workflow's name)." },
+      "title": { "displayName": "Title", "purpose": "Card and section headers." },
+      "body": { "displayName": "Body", "purpose": "Prose: summaries, descriptions, helper text." },
+      "label": { "displayName": "Label / Readout", "purpose": "Mono. Status pills, counts, timestamps, IDs - anything that's a measurement, not prose." }
+    },
+    "shadows": [],
+    "motion": [
+      { "name": "ease-out-expo", "value": "cubic-bezier(0.16, 1, 0.3, 1)", "purpose": "Default easing for all state transitions and reveals." },
+      { "name": "duration-fast", "value": "120ms", "purpose": "Hover/focus state changes." },
+      { "name": "duration-base", "value": "200ms", "purpose": "Panel/dropdown enter, badge state flips." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The one primary action per screen (Sync, Connect, Log in, Generate summary).",
+      "html": "<button class=\"ds-btn-primary\">Sync now</button>",
+      "css": ".ds-btn-primary { background: oklch(0.62 0.18 48); color: #0a0a0a; font-family: var(--font-geist-mono); font-size: 0.8125rem; font-weight: 500; letter-spacing: 0.02em; padding: 10px 18px; border: none; border-radius: 6px; cursor: pointer; transition: background 120ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-primary:hover { background: oklch(0.68 0.18 48); } .ds-btn-primary:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.09 0 0), 0 0 0 4px oklch(0.62 0.18 48 / 0.6); } .ds-btn-primary:disabled { background: oklch(0.30 0.004 48); color: oklch(0.62 0.006 48); cursor: not-allowed; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary actions (Cancel, Log out, secondary nav links).",
+      "html": "<button class=\"ds-btn-ghost\">Cancel</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: oklch(0.93 0.004 48); font-family: var(--font-geist-sans); font-size: 0.875rem; font-weight: 500; padding: 10px 18px; border: 1px solid oklch(0.26 0.004 48); border-radius: 6px; cursor: pointer; transition: border-color 120ms cubic-bezier(0.16,1,0.3,1); } .ds-btn-ghost:hover { border-color: oklch(0.58 0.06 230); } .ds-btn-ghost:focus-visible { outline: none; box-shadow: 0 0 0 2px oklch(0.09 0 0), 0 0 0 4px oklch(0.62 0.18 48 / 0.6); }"
+    },
+    {
+      "name": "Status Pill - Failing",
+      "kind": "chip",
+      "refersTo": "status-pill-failing",
+      "description": "Filled pill for the failing health state - the most saturated element in the system on purpose.",
+      "html": "<span class=\"ds-pill ds-pill-failing\">Failing</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-geist-mono); font-size: 0.75rem; font-weight: 500; letter-spacing: 0.02em; padding: 3px 10px; border-radius: 999px; } .ds-pill-failing { background: oklch(0.58 0.21 25); color: #0a0a0a; }"
+    },
+    {
+      "name": "Status Pill - Silent",
+      "kind": "chip",
+      "refersTo": "status-pill-silent",
+      "description": "Filled pill for the silent health state.",
+      "html": "<span class=\"ds-pill ds-pill-silent\">Silent</span>",
+      "css": ".ds-pill-silent { background: oklch(0.58 0.15 85); color: #0a0a0a; }"
+    },
+    {
+      "name": "Status Dot - Healthy",
+      "kind": "chip",
+      "refersTo": "status-dot-healthy",
+      "description": "Healthy state never gets a filled pill - a small dot plus muted mono text keeps a healthy dashboard quiet (The Calm Default Rule).",
+      "html": "<span class=\"ds-status-dot\"><span class=\"ds-dot ds-dot-healthy\"></span>Healthy</span>",
+      "css": ".ds-status-dot { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-geist-mono); font-size: 0.75rem; color: oklch(0.62 0.006 48); } .ds-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; } .ds-dot-healthy { background: oklch(0.68 0.13 152); }"
+    },
+    {
+      "name": "Card / Panel",
+      "kind": "card",
+      "refersTo": "card-panel",
+      "description": "Workflow and connection cards. Hairline border + one surface step up from bg, never a shadow.",
+      "html": "<div class=\"ds-card\"><h3 class=\"ds-card-title\">Onboarding flow</h3><p class=\"ds-card-body\">Sends a welcome email and creates a CRM record when a new signup webhook fires.</p></div>",
+      "css": ".ds-card { background: oklch(0.155 0.004 48); border: 1px solid oklch(0.26 0.004 48); border-radius: 10px; padding: 24px; } .ds-card-title { font-family: var(--font-geist-sans); font-size: 1.0625rem; font-weight: 500; color: oklch(0.93 0.004 48); margin: 0 0 8px; } .ds-card-body { font-family: var(--font-geist-sans); font-size: 0.9375rem; line-height: 1.6; color: oklch(0.93 0.004 48); margin: 0; max-width: 70ch; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Form fields across login, signup, connect, and settings.",
+      "html": "<input class=\"ds-input\" type=\"text\" placeholder=\"https://your-n8n.example.com\" />",
+      "css": ".ds-input { background: oklch(0.21 0.004 48); border: 1px solid oklch(0.26 0.004 48); border-radius: 6px; padding: 10px 12px; color: oklch(0.93 0.004 48); font-family: var(--font-geist-sans); font-size: 0.9375rem; width: 100%; } .ds-input::placeholder { color: oklch(0.62 0.006 48); } .ds-input:focus { outline: none; border-color: oklch(0.58 0.06 230); box-shadow: 0 0 0 2px oklch(0.09 0 0), 0 0 0 4px oklch(0.62 0.18 48 / 0.6); }"
+    },
+    {
+      "name": "Top Navigation",
+      "kind": "nav",
+      "refersTo": "nav-bar",
+      "description": "Single top bar, replaces the current plain border-gray nav.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-nav-brand\" href=\"/\">Watchdog</a><a class=\"ds-nav-link ds-nav-link-active\" href=\"/\">Connections</a></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 12px 24px; background: oklch(0.155 0.004 48); border-bottom: 1px solid oklch(0.26 0.004 48); } .ds-nav-brand { font-family: var(--font-geist-mono); font-weight: 600; font-size: 0.9375rem; color: oklch(0.62 0.18 48); text-decoration: none; } .ds-nav-link { font-family: var(--font-geist-sans); font-size: 0.875rem; color: oklch(0.62 0.006 48); text-decoration: none; } .ds-nav-link-active { color: oklch(0.58 0.06 230); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Instrument Panel",
+    "overview": "Watchdog is read like an oscilloscope, not browsed like a SaaS dashboard. The reference point is old monitoring instrumentation - amber phosphor displays, analog dials, control-room consoles - where every glowing element exists to report a fact, not to decorate. The product's own principle states it plainly: status is the headline, and a healthy system should look quiet. This system makes that literal: a near-black surface that disappears at rest, one amber signal color reserved for what actually needs attention, and typography split cleanly between human-readable prose (Geist Sans) and exact-readout data (Geist Mono) - counts, timestamps, IDs always render in mono, the way a terminal would print them. It explicitly rejects the generic SaaS-dashboard look this project's PRODUCT.md calls out by name: no purple/blue gradients, no identical icon-card grids, no hero-metric tiles with a gradient accent. There is one brand color, used sparingly, and a second cool accent for quieter UI; that's the entire decorative vocabulary.",
+    "keyCharacteristics": [
+      "Dark by default - built for the moment someone opens this after an alert email, not a bright first-run demo.",
+      "One amber signal color, spent almost entirely on primary actions and the brand mark - never on status.",
+      "Status colors are a closed, separate palette from brand colors.",
+      "Mono type for anything that's data; sans for anything that's prose.",
+      "Flat by default - no drop shadows. Depth comes from three stepped surface lightness levels."
+    ],
+    "rules": [
+      { "name": "The One Signal Rule", "body": "Terminal Amber appears only on primary actions and the wordmark. If you reach for it anywhere in the status system, stop - that's instrument-blue or a status color's job, not the brand's.", "section": "colors" },
+      { "name": "The Calm Default Rule", "body": "Only failing and silent render as filled, saturated pills. healthy renders as quiet text with a small solid dot; unused and orphaned-at-rest render as plain secondary-text. A fully healthy dashboard should look almost monochrome.", "section": "colors" },
+      { "name": "The Readout Rule", "body": "Any number that describes a measurement of the system (run counts, error counts, timestamps, durations) renders in Geist Mono at the Label size, even mid-sentence. Anything a human wrote renders in Geist Sans.", "section": "typography" },
+      { "name": "The Bezel, Not Glow Rule", "body": "Cards and modals separate from their background with a 1px hairline border and a lighter surface step - never a drop shadow. The one exception is the focus ring.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do keep Terminal Amber to primary actions and the wordmark only.",
+      "Do render healthy and unused as quiet, low-color text states.",
+      "Do set every number that measures the system in Geist Mono.",
+      "Do separate every surface with a hairline border and a lighter surface step, never a shadow.",
+      "Do pair every status color with a text label, never color alone."
+    ],
+    "donts": [
+      "Don't use purple/blue gradients or a gradient-accented hero-metric tile.",
+      "Don't build identical icon+heading+text card grids as a default layout move.",
+      "Don't use border-left/border-right as a colored accent stripe on any card, list row, or alert.",
+      "Don't use background-clip: text gradient headings.",
+      "Don't add a drop shadow anywhere outside the one allowed focus-ring glow.",
+      "Don't let a healthy dashboard look as colorful as a broken one."
+    ]
+  }
+}
