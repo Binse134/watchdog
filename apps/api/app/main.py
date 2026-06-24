@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="No-Code Watchdog API", lifespan=lifespan)
 
-allow_origins = {"http://localhost:3000", settings.frontend_url}
+allow_origins = {"http://localhost:3000", settings.frontend_url.rstrip("/")}
 
 app.add_middleware(
     CORSMiddleware,

@@ -20,8 +20,17 @@ from app.security import create_reset_token, create_session_token, hash_password
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-COOKIE_KWARGS = dict(httponly=True, samesite="lax", secure=False, path="/")
-# Set secure=True once the app is served over HTTPS in production.
+# Cross-site deployments (frontend and backend on different domains, e.g.
+# Vercel + Render) require SameSite=None + Secure for the browser to send
+# the cookie back. Local dev (http://localhost) keeps the looser Lax/insecure
+# defaults since both sides share the same site there.
+_cross_site = settings.frontend_url.startswith("https://")
+COOKIE_KWARGS = dict(
+    httponly=True,
+    samesite="none" if _cross_site else "lax",
+    secure=_cross_site,
+    path="/",
+)
 
 
 @router.post("/signup", response_model=UserOut)
