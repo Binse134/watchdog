@@ -104,14 +104,12 @@ def make_workflow(db):
         n8n_workflow_id: str = "1",
         name: str = "Test Workflow",
         enabled: bool = True,
-        is_orphaned: bool = False,
     ) -> Workflow:
         workflow = Workflow(
             connection_id=connection.id,
             n8n_workflow_id=n8n_workflow_id,
             name=name,
             enabled=enabled,
-            is_orphaned=is_orphaned,
         )
         db.add(workflow)
         db.flush()

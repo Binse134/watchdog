@@ -1,17 +1,10 @@
-from app.health import FAILING, HEALTHY, ORPHANED, SILENT, UNUSED, compute_health_status
+from app.health import FAILING, HEALTHY, SILENT, UNUSED, compute_health_status
 from app.sync import WorkflowCounts
 
 
 class FakeWorkflow:
-    def __init__(self, enabled: bool = True, is_orphaned: bool = False):
+    def __init__(self, enabled: bool = True):
         self.enabled = enabled
-        self.is_orphaned = is_orphaned
-
-
-def test_orphaned_wins_over_everything_else():
-    workflow = FakeWorkflow(enabled=True, is_orphaned=True)
-    counts = WorkflowCounts(run_count_7d=5, run_count_30d=5, latest_status="success")
-    assert compute_health_status(workflow, counts) == ORPHANED
 
 
 def test_disabled_workflow_is_unused_even_with_recent_runs():

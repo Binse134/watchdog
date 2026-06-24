@@ -55,11 +55,6 @@ class Workflow(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
-    # True once a sync no longer finds this workflow in n8n's workflow list
-    # (deleted there). We keep the row - and its history/alerts - instead of
-    # deleting it.
-    is_orphaned: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
 
@@ -95,7 +90,7 @@ class Alert(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     workflow_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False)
 
-    # "failing" | "silent" | "orphaned" - mirrors app.health.ALERTABLE_STATUSES
+    # "failing" | "silent" - mirrors app.health.ALERTABLE_STATUSES
     alert_type: Mapped[str] = mapped_column(String, nullable=False)
     triggered_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     # NULL while the condition is still active; set once health recovers.

@@ -9,7 +9,6 @@ from app.models import Alert, Workflow
 ALERT_MESSAGES = {
     "failing": "is failing - its most recent run ended in an error.",
     "silent": "has gone silent - it ran within the last 30 days but nothing in the last 7.",
-    "orphaned": "was deleted in n8n but is still being tracked here.",
 }
 
 

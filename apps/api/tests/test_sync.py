@@ -105,20 +105,26 @@ def test_sync_connection_running_twice_upserts_not_duplicates(db, make_user, mak
     assert db.query(Execution).count() == 1
 
 
-def test_sync_connection_marks_workflow_orphaned_when_no_longer_in_n8n(db, make_user, make_connection, monkeypatch):
-    from app.models import Workflow
+def test_sync_connection_deletes_workflow_no_longer_in_n8n(db, make_user, make_connection, monkeypatch):
+    from app.models import Execution, Workflow
 
     user = make_user()
     connection = make_connection(user)
 
-    _patch_client(monkeypatch, workflows=[{"id": "1", "name": "Wf One", "active": True}])
+    _patch_client(
+        monkeypatch,
+        workflows=[{"id": "1", "name": "Wf One", "active": True}],
+        executions_by_workflow={
+            "1": [{"id": "e1", "status": "success", "startedAt": "2026-06-20T00:00:00.000Z"}]
+        },
+    )
     sync_connection(db, connection)
 
     _patch_client(monkeypatch, workflows=[])  # workflow "1" no longer returned
     sync_connection(db, connection)
 
-    workflow = db.query(Workflow).filter(Workflow.connection_id == connection.id).one()
-    assert workflow.is_orphaned is True
+    assert db.query(Workflow).filter(Workflow.connection_id == connection.id).count() == 0
+    assert db.query(Execution).count() == 0  # cascaded with the deleted workflow
 
 
 def test_sync_connection_records_unauthorized_without_raising(db, make_user, make_connection, monkeypatch):

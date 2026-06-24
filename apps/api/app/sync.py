@@ -56,14 +56,15 @@ def _upsert_execution(db: Session, workflow_id: uuid.UUID, raw_execution: dict) 
     execution.finished_at = parse_n8n_datetime(raw_execution.get("stoppedAt"))
 
 
-def _mark_orphaned_workflows(db: Session, connection_id: uuid.UUID, seen_n8n_ids: set[str]) -> None:
-    """Flags workflows no longer returned by n8n as orphaned (deleted there),
-    rather than deleting our row - keeps their history and any open alerts
-    intact. Only called after a full, successful workflow listing, so a
-    partial sync failure never falsely orphans everything."""
+def _delete_orphaned_workflows(db: Session, connection_id: uuid.UUID, seen_n8n_ids: set[str]) -> None:
+    """Deletes workflows no longer returned by n8n's workflow list (deleted
+    there) - cascades to their executions/alerts/summary too. Only called
+    after a full, successful workflow listing, so a partial sync failure
+    never falsely deletes everything."""
     workflows = db.query(Workflow).filter(Workflow.connection_id == connection_id).all()
     for workflow in workflows:
-        workflow.is_orphaned = workflow.n8n_workflow_id not in seen_n8n_ids
+        if workflow.n8n_workflow_id not in seen_n8n_ids:
+            db.delete(workflow)
 
 
 def sync_connection(db: Session, connection: Connection) -> SyncResult:
@@ -94,7 +95,7 @@ def sync_connection(db: Session, connection: Connection) -> SyncResult:
                 _upsert_execution(db, workflow.id, raw_execution)
                 executions_synced += 1
 
-        _mark_orphaned_workflows(db, connection.id, seen_n8n_ids)
+        _delete_orphaned_workflows(db, connection.id, seen_n8n_ids)
 
         connection.last_sync_status = "ok"
         connection.last_sync_error = None

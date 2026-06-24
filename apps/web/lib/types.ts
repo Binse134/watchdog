@@ -13,7 +13,7 @@ export interface Connection {
   created_at: string;
 }
 
-export type HealthStatus = "healthy" | "failing" | "silent" | "unused" | "orphaned";
+export type HealthStatus = "healthy" | "failing" | "silent" | "unused";
 
 export interface Workflow {
   id: string;
@@ -44,7 +44,7 @@ export interface WorkflowSummary {
   generated_at: string;
 }
 
-export type AlertType = "failing" | "silent" | "orphaned";
+export type AlertType = "failing" | "silent";
 
 export interface Alert {
   id: string;

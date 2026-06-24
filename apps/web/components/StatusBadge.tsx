@@ -3,11 +3,10 @@ import type { HealthStatus } from "@/lib/types";
 const FILL_COLOR: Partial<Record<HealthStatus, string>> = {
   failing: "bg-failing",
   silent: "bg-silent",
-  orphaned: "bg-orphaned",
 };
 
 /**
- * The Calm Default Rule (DESIGN.md): only failing/silent/orphaned render as a
+ * The Calm Default Rule (DESIGN.md): only failing/silent render as a
  * filled pill. healthy/unused render as quiet dot+text so a healthy
  * dashboard stays visually calm instead of matching a broken one.
  */

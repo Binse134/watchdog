@@ -49,7 +49,10 @@ history if the rationale behind a decision is unclear; this file tracks
   each would run its own scheduler and duplicate every tick (re-sync N times,
   but alerts still dedupe correctly via the DB). Revisit then (e.g. run the
   scheduler as a separate process, or add a DB-based leader lock); not a
-  problem at current scale (`uvicorn --reload`, one process).
+  problem at current scale (`uvicorn --reload`, one process). As of Phase 10,
+  this in-process scheduler alone is **not sufficient in production** — see
+  Phase 10 and Gotcha 13 below for why `/internal/check` + an external cron
+  now exists alongside it.
 - **Frontend**: Next.js (App Router), built in Phase 6 — `apps/web`. Every page is a
   Client Component (`"use client"`, plain `fetch`/`useState`/`useEffect`, no
   SWR/react-query) rather than Server Components with the framework's
@@ -172,6 +175,41 @@ The background scheduler (periodic n8n sync + health/alert check, every
 `sync_interval_minutes`) starts automatically with the app via FastAPI's
 `lifespan` — no separate process to run.
 
+## Production deployment (set up in Phase 10)
+
+- **Frontend**: Vercel, `https://watchdog-ashen.vercel.app`. Env var
+  `NEXT_PUBLIC_API_URL` set to the Render backend URL (HTTPS, no trailing
+  slash).
+- **Backend**: Render, `https://watchdog-api-tgv7.onrender.com`, **free tier**
+  (spins down after ~15 min idle — see Gotcha 13). Env vars set there include
+  `FRONTEND_URL` (the Vercel URL above, HTTPS, no trailing slash — both the
+  "no trailing slash" and "HTTPS" parts matter, see Gotcha 12) and
+  `INTERNAL_CHECK_SECRET` (see Gotcha 13).
+- **Database**: Neon (managed Postgres) in production, reached via
+  `DATABASE_URL` set on Render. Local dev is unchanged — still the Docker
+  Postgres container on host port 5433; Neon was never set up locally and
+  no tables were manually created there, the existing Alembic migrations
+  applied directly against it the same as any Postgres target.
+- **External cron** (Phase 10, see Gotcha 13): cron-job.org, free tier, hits
+  `POST https://watchdog-api-tgv7.onrender.com/internal/check` with header
+  `X-Internal-Secret: <INTERNAL_CHECK_SECRET>` every **1 minute**. This is
+  what actually drives near-real-time sync + alerting in production, not the
+  in-process scheduler (which only ticks while Render's dyno happens to be
+  awake, and 1-minute intervals aren't realistic for an in-process
+  `BackgroundScheduler` interval job on a dyno that sleeps anyway).
+- **Email**: Resend, still sandbox mode (no domain verified) — see Gotcha 11.
+  Confirmed again in this production setup: delivery to the user's own
+  Resend-signup email (`binsvarghese6@gmail.com`) works; any other recipient
+  still 403s. Not revisited in Phase 10 beyond reconfirming Gotcha 11 still
+  holds in production — don't re-raise getting a domain until the user does.
+- **A company n8n instance was connected temporarily for testing** in
+  Phase 10 (real company API key + URL, not a personal/sandbox n8n). The
+  user confirmed this is intentional, temporary, test-only, and will be
+  removed later — don't assume it's a permanent fixture or treat its data as
+  long-lived; flag before relying on it for anything beyond ad-hoc testing,
+  and ask before this session ends if it's still connected and whether it
+  should be removed now.
+
 ## Gotchas hit so far (don't repeat these)
 
 1. **System Python is 3.14** (`python3` / Homebrew default) — too new,
@@ -260,8 +298,196 @@ The background scheduler (periodic n8n sync + health/alert check, every
     into `email_error`/a generic success message, looking like it worked
     when it didn't send. Don't mistake this for a code bug; it resolves once
     a real domain is verified on Resend.
+12. **A session cookie with `SameSite=Lax` is never sent on a cross-site
+    `fetch()`** — only on top-level navigations. Hit this for real in Phase
+    10 deploying frontend (Vercel) and backend (Render) to different domains:
+    `app/auth.py`'s `COOKIE_KWARGS` was `samesite="lax", secure=False`
+    (correct for same-site local dev, `localhost:3000`<->`localhost:8000`),
+    so signup/login would succeed (cookie set in the response) but every
+    following `GET /auth/me` 401'd — the browser silently never attached the
+    cookie to the cross-site request at all, no console warning beyond the
+    eventual 401. Fixed by deriving the cookie's `samesite`/`secure` from
+    whether `settings.frontend_url` is HTTPS: `samesite="none", secure=True`
+    cross-site (required pairing — browsers reject `SameSite=None` without
+    `Secure`), `samesite="lax", secure=False` for local HTTP dev. Also hit a
+    second, smaller version of the same class of bug: `app/main.py`'s
+    `allow_origins` did a plain set-equality check against
+    `settings.frontend_url`, so a trailing slash on the env var
+    (`https://x.vercel.app/` vs. the `Origin` header's `https://x.vercel.app`)
+    silently failed CORS — fixed with `.rstrip("/")`. **If a future
+    deployment ever splits frontend/backend onto different domains again,
+    check both of these first** before assuming a "401 right after a
+    successful login" or a CORS error is something else.
+13. **Render's free tier spins the whole process down after ~15 minutes of no
+    inbound HTTP traffic**, which pauses the in-process APScheduler
+    `BackgroundScheduler` along with everything else — discovered in Phase 10
+    when a manually-triggered failure produced no alert because nothing had
+    hit the backend in a while. Two compounding causes, both fixed in Phase
+    10: (1) the manual `POST /connections/{id}/sync` endpoint only ever
+    called `sync_connection`, never `evaluate_workflow` — fixed by having it
+    run the same health-check-then-alert step the scheduler does, whenever
+    the sync itself succeeds; (2) even with that fixed, a *sleeping* dyno
+    means nobody's manual sync or the in-process scheduler can run at all
+    until some request wakes it up. Fixed with a new `POST /internal/check`
+    endpoint (`app/main.py`), gated by a constant-time comparison against
+    `INTERNAL_CHECK_SECRET` (empty by default → 404, i.e. disabled unless
+    explicitly configured), that calls the scheduler's own
+    `run_check_cycle()` on demand — meant to be hit by an external free cron
+    service (cron-job.org, 1-minute interval) so checks actually run on a
+    real cadence regardless of dyno sleep, with the side effect of waking the
+    dyno too. Since this means `run_check_cycle` can now be invoked from two
+    places at once (the in-process scheduler's own timer, and this endpoint,
+    on two different threads), added a non-blocking `threading.Lock` around
+    it (`_check_lock` in `scheduler.py`) — a second caller while one's in
+    progress just skips that tick rather than double-processing the same
+    alerts. **Same class of gotcha will recur on any platform that idles out
+    a process** (Render free tier specifically, but also e.g. Fly.io's
+    `auto_stop_machines` or similar) — the fix pattern (secret-protected
+    on-demand endpoint + external cron) generalizes.
 
-## Current state (Phase 1-9 - DONE, production-readiness items next)
+## Current state (Phase 1-11 - DONE, production-readiness items next)
+
+### Phase 11 — done
+
+Scope: a workflow deleted in n8n used to stay in our dashboard forever,
+flagged `orphaned` (Phase 3's original design — keep history, never delete).
+The user found this confusing in practice (it just looked like a stale/buggy
+row, no "deleted in n8n" messaging existed anywhere) and, when asked to choose
+between turning it into an explicit backup feature vs. real deletion, chose
+**real deletion** — a workflow gone from n8n should be gone from watchdog too,
+matching n8n exactly rather than keeping orphaned history around.
+
+- `app/sync.py` — `_mark_orphaned_workflows` (set `is_orphaned=True`) replaced
+  with `_delete_orphaned_workflows` (`db.delete(workflow)` for any workflow
+  whose `n8n_workflow_id` is no longer in the freshly-synced `seen_n8n_ids`
+  set). Cascades via the existing model relationships to that workflow's
+  `Execution`/`Alert`/`WorkflowSummary` rows too — same cascade config as
+  every other delete in this app, nothing new needed there. Still only runs
+  after a full, successful workflow listing (same guard as before), so a
+  partial sync failure never falsely deletes everything.
+- **No new "realtime" mechanism was needed** — orphan detection has always
+  run on every sync, and sync already runs on whatever cadence is already in
+  place: the external 1-minute cron hitting `/internal/check` in production
+  (Phase 10), the in-process scheduler's `sync_interval_minutes` locally, or
+  a manual "Sync now" click. Confirmed with the user this cadence is fine;
+  they explicitly did not want a faster/push-based mechanism built for this.
+- **`is_orphaned` column and the whole `orphaned` health/alert status removed
+  entirely** (not deprecated/kept for back-compat — it's genuinely dead now
+  that orphaned workflows are deleted, not flagged):
+  - `app/models.py` — dropped `Workflow.is_orphaned`. Migration `46c64d10d1ce`
+    (`drop is_orphaned from workflows`), applied locally.
+  - `app/health.py` — removed `ORPHANED` constant, its precedence check, and
+    its docstring line; removed from `ALERTABLE_STATUSES`.
+  - `app/alerts.py` — removed the `"orphaned"` entry from `ALERT_MESSAGES`.
+  - `apps/web/lib/types.ts` — removed `"orphaned"` from `HealthStatus` and
+    `AlertType`. `components/StatusBadge.tsx` and `app/globals.css` — removed
+    the `orphaned` fill-color mapping and the `--color-orphaned` token (one
+    fewer color in the closed status palette; DESIGN.md's "closed status-color
+    palette" section still describes a 5th orphaned color — not yet edited to
+    match, low priority since it's documentation not code).
+  - Tests updated to match: `tests/test_sync.py`'s orphan test now asserts
+    the workflow row (and its executions) are gone, not flagged;
+    `tests/test_health.py`'s orphaned-precedence test and `FakeWorkflow`'s
+    `is_orphaned` param removed; `tests/conftest.py`'s `make_workflow` factory
+    no longer takes `is_orphaned`.
+- Full suite: 76/77 passing. The one failure
+  (`test_disabled_workflow_is_unused_even_with_recent_runs`) is **pre-existing,
+  unrelated to this phase** — it was already broken by Phase 10's TEMPORARY
+  `or not workflow.enabled` removal from `UNUSED` (see Gotchas / Phase 10
+  above) and the test was never updated for that change. Still needs fixing
+  whenever that TEMPORARY change is reverted — not touched in this phase.
+- `npx tsc --noEmit` and `npm run lint` both clean on `apps/web` after the
+  type/component changes.
+- Not smoke-tested against the real n8n instance in this phase (logic is
+  small and directly covered by the updated unit test) — flag if the user
+  wants it verified end-to-end with a real delete in n8n + a real sync tick.
+
+Not done yet / immediate next steps:
+- DESIGN.md's status-palette section still documents 5 statuses including
+  orphaned — cosmetic doc drift, fix if it's ever a source of confusion.
+- Everything carried over from Phase 10 below is still open and unrelated to
+  this phase (Resend domain, multi-worker scheduler, reverting the TEMPORARY
+  `UNUSED` rule, confirming the company n8n connection's removal).
+
+### Phase 10 — done
+
+Scope: first production deployment (Vercel + Render + Neon) and the bugs that
+deployment surfaced — cross-site auth, a sync/alerting gap, Render free-tier
+idling killing the scheduler, and the frontend never refetching after the
+initial load. See "Production deployment" and Gotchas 12-13 above for the
+full technical detail; this section is the narrative/decision record.
+
+- **Deployed**: frontend → Vercel, backend → Render (free tier), DB → Neon.
+  User handled the actual account/service setup; this session's work was
+  fixing what broke once frontend and backend were on different domains.
+- **Cross-site cookie + CORS fixes** (`app/auth.py`, `app/main.py`) — see
+  Gotcha 12. Without this, login/signup appeared to succeed but every
+  subsequent request was treated as logged-out.
+- **Manual "Sync now" never evaluated alerts** (`app/connections.py`) — it
+  only called `sync_connection`, so a user-triggered sync after intentionally
+  breaking a workflow updated the stored execution data but never ran
+  `evaluate_workflow`/sent an email. Now runs both, same as a scheduler tick,
+  whenever the sync itself reports `last_sync_status == "ok"`.
+- **Render free-tier idling silently pauses all monitoring** — see Gotcha 13.
+  Added `POST /internal/check` (secret-gated, `app/main.py`) + a
+  `threading.Lock` around `run_check_cycle` (`app/scheduler.py`) so an
+  external cron (cron-job.org, 1-minute interval) can drive checks reliably
+  regardless of dyno sleep, without racing the in-process scheduler.
+- **`health.py`'s `UNUSED` rule temporarily loosened** — `compute_health_status`
+  used to return `UNUSED` for any workflow with `enabled=False` (n8n's
+  "published/active" flag) regardless of run history, which meant a
+  manually-triggered run of an unpublished test workflow could never reach
+  `FAILING`/alert. At the user's explicit request, **for testing only**, the
+  `or not workflow.enabled` clause was removed from that check — so any
+  workflow with a run in the last 30 days is now evaluated on its actual run
+  outcome whether or not it's published in n8n. **This is marked TEMPORARY in
+  the code and in the user's own words ("for now... we change it again")** —
+  re-add `or not workflow.enabled` to the `UNUSED` condition once testing is
+  done, restoring "unpublished workflows are never alerted on" as the real
+  rule. Don't let this drift into permanent behavior without the user
+  explicitly deciding to keep it.
+- **Frontend pages fetched once on mount and never refetched**
+  (`apps/web/app/page.tsx`, `app/connections/[id]/page.tsx`,
+  `app/connections/[id]/workflows/[workflowId]/page.tsx`) — so even once the
+  backend was syncing/alerting every ~1 minute, the UI only ever showed fresh
+  run/error counts and sync status after a manual reload or "Sync now"
+  click. Added a 15-second `setInterval` poll to each of the three pages
+  (re-fetches the same data the initial load already used; no new
+  endpoints). `alerts` and `settings` pages were **not** given this
+  treatment — not asked for, and their data (alert history, connection
+  config) changes far less often than run counts.
+- **Resend sandbox-mode restriction (Gotcha 11) reconfirmed in production,
+  not changed** — delivery to `binsvarghese6@gmail.com` works, any other
+  recipient still 403s. No domain verification work done in this phase.
+- **A company n8n instance was connected for testing** — see "Production
+  deployment" above. Confirmed explicitly temporary/test-only by the user;
+  don't treat it as a long-term fixture.
+- Verified end-to-end in production by the user across this session: signup/
+  login persisting correctly post-cookie-fix, a manually-triggered workflow
+  failure reaching an `ALERTABLE_STATUSES` evaluation, and a real alert email
+  actually arriving (to the user's own Resend-registered address).
+- Did **not** push every commit immediately — the user explicitly deferred
+  pushing several times during this session ("No, I'll push it myself").
+  **If a fresh session picks this up, check `git log`/`git status` for
+  unpushed commits before assuming what's described here is actually live on
+  Render/Vercel** — code committed in this phase may still be sitting local-
+  only ahead of `origin/main`.
+
+Not done yet / immediate next steps:
+- **Revert the Phase 10 `health.py` TEMPORARY change** (see above) once the
+  user is done testing with unpublished/manually-run workflows.
+- Confirm whether the company n8n connection has been removed yet; don't
+  assume it's gone without checking.
+- Resend still needs a verified sending domain before alerts/password resets
+  can reach any real user other than `binsvarghese6@gmail.com` — carried over
+  from every phase since Phase 3, including this one.
+- The multi-worker scheduler caveat (Phase 3) is still open and now slightly
+  more relevant: Render's free tier is single-instance so it doesn't apply
+  yet, but revisit if this ever moves to a paid plan with multiple instances.
+- No webhook/push-based alerting was built — `/internal/check`'s 1-minute
+  cron polling was the option the user chose over n8n's Error Workflow +
+  webhook approach (discussed, not implemented) when asked which "realtime"
+  approach they wanted.
 
 ### Phase 9 — done
 
