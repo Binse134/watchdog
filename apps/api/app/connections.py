@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 
+from app.alerts import evaluate_workflow
 from app.database import get_db
 from app.deps import get_current_user
 from app.health import compute_health_status
@@ -157,14 +158,27 @@ def sync_workflows(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Fetches workflows + recent executions from n8n and persists them.
+    """Fetches workflows + recent executions from n8n and persists them, then
+    immediately re-evaluates health/alerts for this connection's workflows
+    so a manual sync gives the same alerting outcome as waiting for the
+    next scheduled check cycle, instead of leaving alerts to lag behind by
+    up to sync_interval_minutes.
 
     Always returns 200 — the sync's own outcome (ok/unauthorized/error) is
     reported in the body via last_sync_status, since a failed sync is a
     normal, expected result to display, not a broken request.
     """
     connection = _get_owned_connection(db, user, connection_id)
-    return sync_connection(db, connection)
+    result = sync_connection(db, connection)
+
+    if result.last_sync_status == "ok":
+        workflows = db.query(Workflow).filter(Workflow.connection_id == connection.id).all()
+        counts = compute_workflow_counts(db, [wf.id for wf in workflows])
+        for workflow in workflows:
+            status_ = compute_health_status(workflow, counts[workflow.id])
+            evaluate_workflow(db, workflow, status_)
+
+    return result
 
 
 def _build_workflow_out(workflow: Workflow, counts: WorkflowCounts, summary: WorkflowSummary | None) -> WorkflowOut:
