@@ -207,6 +207,16 @@ The background scheduler (periodic n8n sync + health/alert check, every
   Resend-signup email (`binsvarghese6@gmail.com`) works; any other recipient
   still 403s. Not revisited in Phase 10 beyond reconfirming Gotcha 11 still
   holds in production — don't re-raise getting a domain until the user does.
+- **LLM summary generation does not work in production at all** — see
+  Gotcha 15. `OLLAMA_BASE_URL` defaults to `http://localhost:11434`, which on
+  Render's container is just Render's own loopback with nothing listening;
+  Ollama only exists on the user's Mac. Discovered for the first time in a
+  later (post-Phase-12) session when the user actually clicked "Generate
+  summary" against the live Vercel/Render deployment and got
+  `Could not reach Ollama at http://localhost:11434: [Errno 111] Connection
+  refused`. **Explicitly deferred by the user ("focus on this at a later
+  point, leave it for now")** — don't fix unprompted, but don't mistake a
+  future report of this same error for a new regression either.
 - **A company n8n instance was connected temporarily for testing** in
   Phase 10 (real company API key + URL, not a personal/sandbox n8n). The
   user confirmed this is intentional, temporary, test-only, and will be
@@ -364,6 +374,30 @@ The background scheduler (periodic n8n sync + health/alert check, every
     resetting to local: `postgresql://watchdog:watchdog@localhost:5433/watchdog`
     (matches `docker-compose.yml`'s credentials), then `alembic upgrade head`
     if it's been a while since local Postgres was last used.
+15. **"Generate summary" on the live production app fails with `Could not
+    reach Ollama at http://localhost:11434: [Errno 111] Connection refused`
+    — this is not a bug, it's a structural gap that was flagged back in
+    Phase 4 and never actually closed.** `app/llm.py`'s `generate_text()`
+    always calls `settings.ollama_base_url` (default
+    `http://localhost:11434`); Ollama itself only runs on the user's own
+    Mac, never on Render. On Render, `localhost:11434` is Render's own
+    container with nothing listening there, hence the connection-refused —
+    deterministic, not flaky, and it means summary generation has likely
+    never worked against the real Vercel/Render deployment, only against
+    local dev where the frontend/backend/Ollama are all the same machine.
+    **First actually noticed** when the user clicked "Generate summary" on
+    the live production app (not local dev) in a session after Phase 12.
+    Don't confuse this with a transient infra hiccup — restarting
+    Render/Postgres/whatever will never fix it, since the root cause is
+    `OLLAMA_BASE_URL` pointing at a host that's only reachable from the
+    user's own machine. **User explicitly deferred fixing this** ("focus on
+    this at a later point, leave it for now") — three real options were
+    discussed (swap to a hosted LLM API in production while keeping Ollama
+    for local dev; tunnel the Mac's Ollama to the internet, e.g. Cloudflare
+    Tunnel/ngrok, fragile since it requires the Mac to be on; or just
+    improve the error message without fixing the gap) but none were chosen
+    yet — ask again before implementing any of them, don't assume which
+    direction the user wants.
 
 ## Current state (Phase 1-12 - DONE, production-readiness items next)
 

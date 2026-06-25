@@ -81,6 +81,31 @@ def test_list_workflows_follows_pagination():
     assert calls["n"] == 2
 
 
+def test_check_health_returns_true_on_200():
+    def handler(request):
+        assert request.url.path == "/healthz"
+        return httpx.Response(200, json={"status": "ok"})
+
+    client = _client_with_handler(handler)
+    assert client.check_health() is True
+
+
+def test_check_health_returns_false_on_non_200():
+    def handler(request):
+        return httpx.Response(503, json={"status": "error"})
+
+    client = _client_with_handler(handler)
+    assert client.check_health() is False
+
+
+def test_check_health_returns_false_on_request_error():
+    def handler(request):
+        raise httpx.ConnectError("connection refused")
+
+    client = _client_with_handler(handler)
+    assert client.check_health() is False
+
+
 def test_list_executions_stops_paging_once_older_than_since():
     from datetime import datetime, timedelta, timezone
 

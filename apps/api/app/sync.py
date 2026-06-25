@@ -103,7 +103,11 @@ def sync_connection(db: Session, connection: Connection) -> SyncResult:
         connection.last_sync_status = "unauthorized"
         connection.last_sync_error = "API key was rejected"
     except (N8nConnectionError, N8nApiError) as exc:
-        connection.last_sync_status = "error"
+        # /healthz is unauthenticated and separate from the REST API, so a
+        # pass here narrows the failure to the API call itself (eg. Public
+        # API disabled, a proxy blocking /api/v1) rather than the instance
+        # being down outright.
+        connection.last_sync_status = "error" if client.check_health() else "unreachable"
         connection.last_sync_error = str(exc)
     finally:
         client.close()

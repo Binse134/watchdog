@@ -46,6 +46,18 @@ class N8nClient:
         """Raises N8nUnauthorizedError / N8nConnectionError / N8nApiError on failure."""
         self._get("/api/v1/workflows", params={"limit": 1})
 
+    def check_health(self) -> bool:
+        """Pings n8n's unauthenticated /healthz endpoint. Only used to
+        clarify an error already raised by an authenticated call (see
+        sync.py) - never as a precondition, since some instances don't
+        expose /healthz publicly even when their REST API works fine.
+        Returns False on any failure instead of raising."""
+        try:
+            response = self._client.get("/healthz")
+        except httpx.RequestError:
+            return False
+        return response.status_code == 200
+
     def list_workflows(self) -> list[dict]:
         """Fetches all workflows, following n8n's cursor-based pagination."""
         workflows: list[dict] = []

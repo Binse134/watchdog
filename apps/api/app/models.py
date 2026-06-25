@@ -32,7 +32,9 @@ class Connection(Base):
     n8n_base_url: Mapped[str] = mapped_column(String, nullable=False)
     api_key_encrypted: Mapped[str] = mapped_column(String, nullable=False)
 
-    # "never" | "ok" | "error" | "unauthorized"
+    # "never" | "ok" | "error" | "unreachable" | "unauthorized"
+    # "unreachable" means n8n's own /healthz also failed (see app/sync.py),
+    # vs "error" where the instance is up but the REST API call itself failed.
     last_sync_status: Mapped[str] = mapped_column(String, default="never", nullable=False)
     last_sync_error: Mapped[str | None] = mapped_column(String, nullable=True)
     last_sync_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

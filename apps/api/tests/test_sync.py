@@ -55,6 +55,9 @@ class FakeN8nClient:
     def list_executions(self, workflow_id, since=None):
         return self._executions_by_workflow.get(workflow_id, [])
 
+    def check_health(self):
+        return True
+
     def close(self):
         pass
 
@@ -142,10 +145,13 @@ def test_sync_connection_records_unauthorized_without_raising(db, make_user, mak
     assert result.workflows_synced == 0
 
 
-def test_sync_connection_records_connection_error_without_raising(db, make_user, make_connection, monkeypatch):
+def test_sync_connection_records_unreachable_when_healthz_also_fails(db, make_user, make_connection, monkeypatch):
     class UnreachableClient(FakeN8nClient):
         def list_workflows(self):
             raise N8nConnectionError("could not reach it")
+
+        def check_health(self):
+            return False
 
     monkeypatch.setattr("app.sync.N8nClient", UnreachableClient)
     user = make_user()
@@ -153,5 +159,27 @@ def test_sync_connection_records_connection_error_without_raising(db, make_user,
 
     result = sync_connection(db, connection)
 
-    assert result.last_sync_status == "error"
+    assert result.last_sync_status == "unreachable"
     assert "could not reach it" in result.last_sync_error
+
+
+def test_sync_connection_records_error_when_healthz_succeeds(db, make_user, make_connection, monkeypatch):
+    """An API-level failure (eg. Public API disabled) where the instance
+    itself is still up, per /healthz, is a narrower problem than a full
+    outage - kept as "error" rather than "unreachable"."""
+
+    class ApiFailingClient(FakeN8nClient):
+        def list_workflows(self):
+            raise N8nApiError("n8n returned 404: not found")
+
+        def check_health(self):
+            return True
+
+    monkeypatch.setattr("app.sync.N8nClient", ApiFailingClient)
+    user = make_user()
+    connection = make_connection(user)
+
+    result = sync_connection(db, connection)
+
+    assert result.last_sync_status == "error"
+    assert "404" in result.last_sync_error
