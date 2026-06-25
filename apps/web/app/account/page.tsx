@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useAuth, useRequireAuth } from "@/lib/auth-context";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
+import ConfirmButton from "@/components/ConfirmButton";
 import Input from "@/components/Input";
 
 export default function AccountPage() {
@@ -20,6 +21,10 @@ export default function AccountPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.title = "Account · Watchdog";
+  }, []);
 
   async function handleChangePassword(e: FormEvent) {
     e.preventDefault();
@@ -39,13 +44,6 @@ export default function AccountPage() {
   }
 
   async function handleDelete() {
-    if (
-      !window.confirm(
-        "Delete your account? This permanently removes every connection, workflow, execution, and alert tied to it."
-      )
-    ) {
-      return;
-    }
     setDeleting(true);
     setDeleteError(null);
     try {
@@ -88,8 +86,16 @@ export default function AccountPage() {
             className="mt-1"
           />
         </label>
-        {passwordError && <p className="text-sm text-failing">{passwordError}</p>}
-        {passwordSuccess && <p className="text-sm text-healthy">Password updated.</p>}
+        {passwordError && (
+          <p role="alert" className="text-sm text-failing">
+            {passwordError}
+          </p>
+        )}
+        {passwordSuccess && (
+          <p role="status" className="animate-enter text-sm text-healthy">
+            Password updated.
+          </p>
+        )}
         <Button type="submit" disabled={saving} className="self-start">
           {saving ? "Saving..." : "Update password"}
         </Button>
@@ -100,10 +106,19 @@ export default function AccountPage() {
         <p className="mb-3 text-xs text-muted">
           Permanently removes your account along with every connection, workflow, execution, and alert tied to it.
         </p>
-        {deleteError && <p className="mb-3 text-sm text-failing">{deleteError}</p>}
-        <Button variant="danger" onClick={handleDelete} disabled={deleting}>
-          {deleting ? "Deleting..." : "Delete account"}
-        </Button>
+        {deleteError && (
+          <p role="alert" className="mb-3 text-sm text-failing">
+            {deleteError}
+          </p>
+        )}
+        <ConfirmButton
+          onConfirm={handleDelete}
+          pending={deleting}
+          pendingLabel="Deleting..."
+          prompt="Delete your account permanently?"
+        >
+          Delete account
+        </ConfirmButton>
       </Card>
     </div>
   );

@@ -8,7 +8,7 @@ colors:
   near-black: "oklch(0.09 0 0)"
   panel: "oklch(0.155 0.004 48)"
   panel-raised: "oklch(0.21 0.004 48)"
-  hairline: "oklch(0.26 0.004 48)"
+  hairline: "oklch(0.34 0.004 48)"
   ink: "oklch(0.93 0.004 48)"
   ink-muted: "oklch(0.62 0.006 48)"
   status-failing: "oklch(0.58 0.21 25)"
@@ -117,7 +117,7 @@ A near-black instrument-panel surface carries almost the entire UI; color is spe
 - **Near-Black** (oklch(0.09 0 0)): Page background. Pure neutral, zero chroma — the instrument panel's resting state.
 - **Panel** (oklch(0.155 0.004 48)): Card/section surfaces, one step up from bg. Barely tinted toward the brand hue (chroma 0.004) — just enough to feel like *this* product's dark, not a generic dark mode.
 - **Raised Panel** (oklch(0.21 0.004 48)): Modals, dropdowns, popovers — the third and final surface step.
-- **Hairline** (oklch(0.26 0.004 48)): Borders and dividers. A line, not a shadow — this system separates surfaces with edges, not elevation.
+- **Hairline** (oklch(0.34 0.004 48)): Borders and dividers. A line, not a shadow — this system separates surfaces with edges, not elevation. Bumped from the original 0.26 in Phase 12 after measuring it landed at only ~1.26:1 contrast against `panel` (and the three surface-lightness steps measure only ~1.1:1 apart from each other) — both well under the 3:1 floor for perceivable UI boundaries. Not pushed all the way to 3:1, which would fight the flat/quiet aesthetic; this is a moderate, measured improvement, not full WCAG 1.4.11 compliance.
 - **Primary Text** (oklch(0.93 0.004 48)): Body and heading text. 7:1+ against bg.
 - **Secondary Text** (oklch(0.62 0.006 48)): Timestamps, counts, helper text, placeholders. ≥3.5:1 against bg — used for de-emphasis, never for anything a user must read to use the product.
 

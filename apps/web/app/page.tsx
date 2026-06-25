@@ -20,8 +20,10 @@ function SyncStatusBadge({ status }: { status: string }) {
       </span>
     );
   }
+  // text-white, not the system-default #0a0a0a -- see StatusBadge.tsx's comment,
+  // same measured contrast failure applies to this twin failing-pill pattern.
   return (
-    <span className="inline-flex items-center rounded-full bg-failing px-2.5 py-0.5 font-mono text-xs font-medium tracking-[0.02em] text-[#0a0a0a]">
+    <span className="inline-flex items-center rounded-full bg-failing px-2.5 py-0.5 font-mono text-xs font-medium tracking-[0.02em] text-white">
       {status}
     </span>
   );
@@ -38,6 +40,10 @@ export default function DashboardPage() {
   const [apiKey, setApiKey] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    document.title = "Connections · Watchdog";
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -84,20 +90,26 @@ export default function DashboardPage() {
     <div className="max-w-2xl mx-auto mt-12 px-4">
       <h1 className="mb-6 text-2xl font-semibold tracking-[-0.01em] text-ink">Your connections</h1>
 
-      {listError && <p className="mb-4 text-sm text-failing">{listError}</p>}
+      {listError && (
+        <p role="alert" className="mb-4 text-sm text-failing">
+          {listError}
+        </p>
+      )}
 
       {!connections && !listError && <p className="mb-4 text-sm text-muted">Loading…</p>}
 
       {connections && connections.length > 0 && (
         <ul className="mb-8 flex flex-col gap-2">
-          {connections.map((c) => (
-            <li key={c.id}>
+          {connections.map((c, i) => (
+            <li key={c.id} className="animate-enter" style={{ animationDelay: `${Math.min(i, 6) * 30}ms` }}>
               <Link
                 href={`/connections/${c.id}`}
-                className="focus-ring flex items-center justify-between rounded-[10px] border border-hairline bg-panel px-4 py-3 transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] hover:border-accent"
+                className="focus-ring flex items-start justify-between gap-3 rounded-[10px] border border-hairline bg-panel px-4 py-3 transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] hover:border-accent"
               >
-                <span className="font-mono text-sm text-ink">{c.n8n_base_url}</span>
-                <SyncStatusBadge status={c.last_sync_status} />
+                <span className="min-w-0 break-all font-mono text-sm text-ink">{c.n8n_base_url}</span>
+                <span className="mt-0.5 flex-none">
+                  <SyncStatusBadge status={c.last_sync_status} />
+                </span>
               </Link>
             </li>
           ))}
@@ -111,21 +123,33 @@ export default function DashboardPage() {
       <Card>
         <h2 className="mb-3 text-base font-medium text-ink">Connect an n8n instance</h2>
         <form onSubmit={handleConnect} className="flex flex-col gap-3">
-          <Input
-            type="text"
-            required
-            placeholder="n8n base URL (e.g. http://localhost:5678)"
-            value={baseUrl}
-            onChange={(e) => setBaseUrl(e.target.value)}
-          />
-          <Input
-            type="password"
-            required
-            placeholder="API key"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-          />
-          {formError && <p className="text-sm text-failing">{formError}</p>}
+          <label className="text-sm text-muted">
+            n8n base URL
+            <Input
+              type="text"
+              required
+              placeholder="e.g. http://localhost:5678"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              className="mt-1"
+            />
+          </label>
+          <label className="text-sm text-muted">
+            API key
+            <Input
+              type="password"
+              required
+              placeholder="From n8n's Settings → API"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              className="mt-1"
+            />
+          </label>
+          {formError && (
+            <p role="alert" className="text-sm text-failing">
+              {formError}
+            </p>
+          )}
           <Button type="submit" disabled={submitting} className="self-start">
             {submitting ? "Connecting..." : "Connect"}
           </Button>

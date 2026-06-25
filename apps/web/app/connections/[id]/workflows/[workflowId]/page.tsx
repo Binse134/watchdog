@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth-context";
-import { formatDate } from "@/lib/format";
+import { formatDate, pluralize } from "@/lib/format";
 import type { Workflow, WorkflowSummary } from "@/lib/types";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
@@ -19,6 +19,12 @@ export default function WorkflowDetailPage() {
   const [workflow, setWorkflow] = useState<Workflow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+
+  useEffect(() => {
+    if (workflow?.name) {
+      document.title = `${workflow.name} · Watchdog`;
+    }
+  }, [workflow?.name]);
 
   useEffect(() => {
     if (!user) return;
@@ -67,53 +73,68 @@ export default function WorkflowDetailPage() {
     <div className="max-w-2xl mx-auto mt-12 px-4">
       <Link
         href={`/connections/${connectionId}`}
-        className="focus-ring rounded-[4px] text-sm text-muted transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] hover:text-accent"
+        className="focus-ring inline-block rounded-[4px] py-1.5 text-sm text-muted transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] hover:text-accent pointer-coarse:py-3"
       >
         ← Back to workflows
       </Link>
 
-      {error && <p className="mt-4 text-sm text-failing">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-4 text-sm text-failing">
+          {error}
+        </p>
+      )}
 
       {!workflow && !error && <p className="mt-4 text-sm text-muted">Loading…</p>}
 
       {workflow && (
-        <>
-          <div className="mt-4 mb-2 flex items-center justify-between gap-4">
-            <h1 className="text-2xl font-semibold tracking-[-0.01em] text-ink">{workflow.name}</h1>
-            <StatusBadge status={workflow.health_status} />
+        <div className="animate-enter">
+          <div className="mt-4 mb-2 flex items-start justify-between gap-4">
+            <h1 className="min-w-0 text-2xl font-semibold tracking-[-0.01em] text-ink">{workflow.name}</h1>
+            <span className="mt-1 flex-none">
+              <StatusBadge status={workflow.health_status} />
+            </span>
           </div>
 
           <p className="mb-6 font-mono text-sm text-muted">
             {workflow.enabled ? "Enabled" : "Disabled"} · last synced {formatDate(workflow.last_synced_at)}
           </p>
 
-          <div className="mb-8 grid grid-cols-2 gap-4 text-sm">
+          <div className="mb-8 grid grid-cols-1 gap-4 text-sm sm:grid-cols-2">
             <Card className="px-4 py-3">
               <p className="text-muted">Last 7 days</p>
               <p className="font-mono text-ink">
-                {workflow.run_count_7d} runs, {workflow.error_count_7d} errors
+                {pluralize(workflow.run_count_7d, "run")}, {pluralize(workflow.error_count_7d, "error")}
               </p>
             </Card>
             <Card className="px-4 py-3">
               <p className="text-muted">Last 30 days</p>
               <p className="font-mono text-ink">
-                {workflow.run_count_30d} runs, {workflow.error_count_30d} errors
+                {pluralize(workflow.run_count_30d, "run")}, {pluralize(workflow.error_count_30d, "error")}
               </p>
             </Card>
           </div>
 
           <Card>
-            <div className="mb-3 flex items-center justify-between">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-base font-medium text-ink">Summary</h2>
-              <Button onClick={handleGenerateSummary} disabled={generating} className="px-3 py-1.5 text-xs">
+              <Button
+                onClick={handleGenerateSummary}
+                disabled={generating}
+                className="px-3 py-1.5 text-xs pointer-coarse:min-h-11 pointer-coarse:px-4"
+              >
                 {generating ? "Generating..." : workflow.summary ? "Regenerate" : "Generate summary"}
               </Button>
             </div>
 
             {generating && (
-              <p className="mb-3 text-xs text-muted">
-                This calls a local LLM and can take up to a couple of minutes — feel free to wait.
-              </p>
+              <div aria-live="polite" className="mb-3">
+                <div className="mb-2 h-1 overflow-hidden rounded-full bg-panel-raised">
+                  <div className="animate-indeterminate h-full w-1/3 rounded-full bg-accent" />
+                </div>
+                <p className="text-xs text-muted">
+                  This calls a local LLM and can take up to a couple of minutes — feel free to wait.
+                </p>
+              </div>
             )}
 
             {workflow.summary ? (
@@ -125,7 +146,7 @@ export default function WorkflowDetailPage() {
               <p className="text-sm text-muted italic">No summary generated yet.</p>
             )}
           </Card>
-        </>
+        </div>
       )}
     </div>
   );

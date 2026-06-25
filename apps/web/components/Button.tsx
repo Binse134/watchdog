@@ -16,7 +16,7 @@ export default function Button({ variant = "primary", className = "", ...props }
   return (
     <button
       {...props}
-      className={`focus-ring inline-flex items-center justify-center gap-2 rounded-[6px] px-[18px] py-2.5 font-mono text-[13px] font-medium tracking-[0.02em] transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer ${VARIANT_STYLES[variant]} ${className}`}
+      className={`focus-ring inline-flex items-center justify-center gap-2 rounded-[6px] px-[18px] py-2.5 font-mono text-[13px] font-medium tracking-[0.02em] transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out-expo)] active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100 cursor-pointer ${VARIANT_STYLES[variant]} ${className}`}
     />
   );
 }

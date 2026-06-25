@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import Button from "@/components/Button";
@@ -11,6 +11,10 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    document.title = "Reset password · Watchdog";
+  }, []);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -27,22 +31,30 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="max-w-sm mx-auto mt-16 px-4">
+    <div className="animate-enter max-w-sm mx-auto mt-16 px-4">
       <h1 className="mb-6 text-2xl font-semibold tracking-[-0.01em] text-ink">Reset your password</h1>
       {submitted ? (
-        <p className="text-sm text-muted">
+        <p role="status" className="animate-enter text-sm text-muted">
           If that email has an account, a reset link has been sent. Check your inbox.
         </p>
       ) : (
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          <Input
-            type="email"
-            required
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-          />
-          {error && <p className="text-sm text-failing">{error}</p>}
+          <label className="text-sm text-muted">
+            Email
+            <Input
+              type="email"
+              required
+              autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="mt-1"
+            />
+          </label>
+          {error && (
+            <p role="alert" className="text-sm text-failing">
+              {error}
+            </p>
+          )}
           <Button type="submit" disabled={submitting}>
             {submitting ? "Sending..." : "Send reset link"}
           </Button>

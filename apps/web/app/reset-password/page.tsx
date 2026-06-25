@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
@@ -31,7 +31,7 @@ function ResetPasswordForm() {
 
   if (!token) {
     return (
-      <p className="text-sm text-failing">
+      <p role="alert" className="text-sm text-failing">
         This reset link is missing its token. Request a new one from{" "}
         <Link href="/forgot-password" className="focus-ring rounded-[2px] text-accent hover:underline">
           here
@@ -43,15 +43,24 @@ function ResetPasswordForm() {
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <Input
-        type="password"
-        required
-        minLength={8}
-        placeholder="New password"
-        value={newPassword}
-        onChange={(e) => setNewPassword(e.target.value)}
-      />
-      {error && <p className="text-sm text-failing">{error}</p>}
+      <label className="text-sm text-muted">
+        New password
+        <Input
+          type="password"
+          required
+          minLength={8}
+          autoComplete="new-password"
+          placeholder="Min 8 characters"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          className="mt-1"
+        />
+      </label>
+      {error && (
+        <p role="alert" className="text-sm text-failing">
+          {error}
+        </p>
+      )}
       <Button type="submit" disabled={submitting}>
         {submitting ? "Saving..." : "Set new password"}
       </Button>
@@ -60,8 +69,12 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
+  useEffect(() => {
+    document.title = "Set new password · Watchdog";
+  }, []);
+
   return (
-    <div className="max-w-sm mx-auto mt-16 px-4">
+    <div className="animate-enter max-w-sm mx-auto mt-16 px-4">
       <h1 className="mb-6 text-2xl font-semibold tracking-[-0.01em] text-ink">Set a new password</h1>
       <Suspense fallback={null}>
         <ResetPasswordForm />

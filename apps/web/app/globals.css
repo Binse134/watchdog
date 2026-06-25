@@ -5,7 +5,7 @@
   --color-bg: oklch(0.09 0 0);
   --color-panel: oklch(0.155 0.004 48);
   --color-panel-raised: oklch(0.21 0.004 48);
-  --color-hairline: oklch(0.26 0.004 48);
+  --color-hairline: oklch(0.34 0.004 48);
   --color-ink: oklch(0.93 0.004 48);
   --color-muted: oklch(0.62 0.006 48);
 
@@ -63,6 +63,55 @@ body {
   box-shadow:
     0 0 0 2px var(--color-bg),
     0 0 0 4px color-mix(in oklch, var(--color-primary) 60%, transparent);
+}
+
+/* Staggered entrance for dynamically-rendered lists (connections, workflows,
+   alerts). Index-driven delay is set per-item via inline style. */
+@keyframes enter-up {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.animate-enter {
+  animation: enter-up 220ms var(--ease-out-expo) backwards;
+}
+
+/* Status just changed (e.g. healthy -> failing on a poll tick). A brief,
+   purposeful pop draws the eye to the one fact that matters most right now
+   -- not decoration, see DESIGN.md "Status is the headline". */
+@keyframes status-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.animate-status-pop {
+  animation: status-pop 240ms var(--ease-out-expo);
+}
+
+/* Indeterminate progress bar for long-running operations (LLM summary
+   generation can take up to ~2 minutes) -- perceived-performance signal that
+   the system is still working, not stalled. */
+@keyframes indeterminate-sweep {
+  from {
+    transform: translateX(-40%) scaleX(0.4);
+  }
+  to {
+    transform: translateX(100%) scaleX(0.4);
+  }
+}
+.animate-indeterminate {
+  animation: indeterminate-sweep 1.3s ease-in-out infinite;
+  transform-origin: left;
 }
 
 @media (prefers-reduced-motion: reduce) {

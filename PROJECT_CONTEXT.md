@@ -21,7 +21,9 @@ history if the rationale behind a decision is unclear; this file tracks
 - **Backend**: Python 3.13 + FastAPI, sync SQLAlchemy 2.0 + Alembic (not async —
   simpler mental model for routes using regular `def`, FastAPI threadpools them).
 - **DB**: Postgres via Docker Compose, **host port 5433** (not 5432 — see
-  "Gotchas" below for why).
+  "Gotchas" below for why). Local dev's `apps/api/.env` `DATABASE_URL` should
+  always point here, never at the production Neon DB — see Gotcha 14 for what
+  happens when it drifts (it did, once, found and fixed in Phase 12).
 - **Auth**: email+password, signed session cookie via `itsdangerous` (not JWT).
   Password hashing: `bcrypt` library directly (not passlib — see Gotchas).
 - **Secrets**: n8n API keys encrypted at rest with `cryptography.fernet.Fernet`.
@@ -64,10 +66,13 @@ history if the rationale behind a decision is unclear; this file tracks
   Phase 6).
 - **Visual design system**: "The Instrument Panel" — dark, near-black, one amber
   brand color (`terminal-amber`) reserved for primary actions only, status colors
-  (failing/silent/orphaned/healthy/unused) kept in a separate closed palette so
-  brand and status are never confused. Built in Phase 8 via the `impeccable` +
+  (failing/silent/healthy/unused — `orphaned` was a fifth status removed in
+  Phase 11, see below) kept in a separate closed palette so brand and status
+  are never confused. Built in Phase 8 via the `impeccable` +
   `emil-design-eng` Claude Code skills (installed project-locally under
-  `.claude/skills/` and `.agents/skills/` — see Phase 8 below). Source of truth:
+  `.claude/skills/` and `.agents/skills/` — see Phase 8 below), refined for
+  motion/accessibility/consistency in Phase 12 (same two skills, explicitly
+  re-invoked — see Phase 12 below). Source of truth:
   root `PRODUCT.md` (strategic — register, users, brand personality, anti-
   references) and root `DESIGN.md` (visual — color/type/component tokens,
   named rules like "The Calm Default Rule"). Read both before making any future
@@ -344,8 +349,204 @@ The background scheduler (periodic n8n sync + health/alert check, every
     a process** (Render free tier specifically, but also e.g. Fly.io's
     `auto_stop_machines` or similar) — the fix pattern (secret-protected
     on-demand endpoint + external cron) generalizes.
+14. **A mysterious hang on a DB-touching endpoint that does *not* reproduce
+    when called directly with `httpx` (bypassing the browser) is not a code
+    bug — check `apps/api/.env`'s `DATABASE_URL` first.** Found in Phase 12:
+    it was pointed at the **production Neon database** instead of local
+    Docker Postgres (port 5433), and Neon's serverless compute auto-suspends
+    after idle, taking several seconds to resume on the next query — long
+    enough to look like a hang under a short client/browser timeout, then
+    resolve fine moments later once warm. Confirmed via `pg_stat_activity`-
+    style checks and direct API calls that the *code* was never the problem.
+    See Phase 12 below for the full incident (a throwaway demo connection
+    created for UI screenshot testing briefly landed in production as a
+    result, found and deleted immediately). If `DATABASE_URL` ever needs
+    resetting to local: `postgresql://watchdog:watchdog@localhost:5433/watchdog`
+    (matches `docker-compose.yml`'s credentials), then `alembic upgrade head`
+    if it's been a while since local Postgres was last used.
 
-## Current state (Phase 1-11 - DONE, production-readiness items next)
+## Current state (Phase 1-12 - DONE, production-readiness items next)
+
+### Phase 12 — done
+
+Scope: user said the Phase 8 visual redesign was "decent but not professional or
+good enough" and asked again for `impeccable` + `emil-design-eng`, this time for
+a refinement/polish pass (motion, accessibility, consistency) rather than a
+from-scratch redesign — "The Instrument Panel" system itself was kept, not
+replaced.
+
+- **Found and fixed a real WCAG AA contrast failure**: the `failing` status
+  pill's `#0a0a0a` text measured 4.16:1 against `status-failing` — under the
+  4.5:1 floor for its text size. DESIGN.md had flagged this exact pill as
+  "confirm contrast per pill, adjust to white if it falls short" back in Phase
+  8 but it was never actually checked. Verified by converting every oklch
+  token to sRGB and computing real WCAG ratios (not eyeballed) — `silent`'s
+  black text passes (4.59:1) so only `failing` flips to white text (4.76:1).
+  Fixed in both `StatusBadge.tsx` and the dashboard's twin `SyncStatusBadge`
+  pattern in `app/page.tsx`, which had the identical bug.
+- **`--color-hairline` lightness bumped** `oklch(0.26 0.004 48)` →
+  `oklch(0.34 0.004 48)` (`app/globals.css`). Measured: the documented
+  three-surface depth system (bg/panel/panel-raised) is only ~1.1:1 contrast
+  between steps — barely perceptible by lightness alone — so the hairline
+  border was carrying more of the boundary signal than DESIGN.md assumed.
+  Didn't chase full WCAG 1.4.11 (3:1) compliance since that would fight the
+  deliberately flat/quiet aesthetic; this is a moderate, measured improvement
+  (1.26:1 → 1.66:1 vs panel), not a redesign of the surface system.
+- **First motion pass** (`app/globals.css`'s `.animate-enter` /
+  `.animate-status-pop` / `.animate-indeterminate` keyframes, plus
+  `Button.tsx`'s `active:scale-[0.97]`) — Phase 8 explicitly left this undone.
+  Pure CSS, no animation library added (matches the project's existing
+  minimal-dependency stance). Status-change pop is gated on an actual
+  previous-value change (`StatusBadge.tsx`'s `useStatusChangePop`, skips the
+  pop on initial mount) so a fresh page load stays calm. List stagger
+  (connections/workflows/alerts) is capped at a handful of items'
+  worth of delay, not unbounded. All motion runs through the existing global
+  `prefers-reduced-motion` override — no new per-component media queries
+  needed.
+- **`ConfirmButton.tsx`** (new) replaces `window.confirm()` for
+  delete-connection and delete-account — a native browser dialog broke the
+  instrument-panel visual language at the one moment (a destructive action)
+  it matters most. Inline two-step confirm, 5s auto-disarm. Used in
+  `connections/[id]/settings/page.tsx` and `account/page.tsx`.
+- **`ConnectionSubNav.tsx`** (new) — a real navigation gap, not just a visual
+  one: the three connection-scoped pages (workflows/alerts/settings) had no
+  consistent way to move directly between each other. The main workflows page
+  had Alerts/Settings links; the alerts and settings pages each only had a
+  "← Back to workflows" link, no way to jump alerts↔settings directly. Now
+  all three render the same tab bar, active tab in `text-accent` per
+  DESIGN.md's own Navigation section (which described this but it was never
+  actually built for this case).
+- **A11y**: login/signup/dashboard's connect-form inputs were placeholder-only
+  with no real `<label>` — inconsistent with settings/account (which already
+  had labels) and a real WCAG 1.3.1 gap. Added labels everywhere, removed the
+  now-redundant placeholder duplication. `role="alert"` on error messages,
+  `role="status"`/`aria-live="polite"` on success/info text and the polling
+  sync-status line.
+- **Consistency**: added `pluralize()` (`lib/format.ts`) so counts read "1
+  error" not "1 errors" — used on both the workflow-list rows and the
+  workflow-detail stat cards. Fixed long-workflow-name wrapping
+  (`min-w-0`/`flex-none`/`items-start`) on list rows, the detail header, and
+  alert rows — previously `items-center justify-between` with no `min-w-0`
+  could crowd a long name against its status badge.
+- **Polish**: `app/icon.svg` favicon (the brand's actual terminal-amber/panel
+  oklch tokens converted to exact hex, not eyeballed); per-page
+  `document.title` via a `useEffect` in each page (every page here is a
+  Client Component, and Next's static `metadata` export only works in Server
+  Components — confirmed against this repo's actual installed Next 16 docs
+  per `apps/web/AGENTS.md`'s instruction to check before assuming
+  training-data APIs still apply, rather than guessing); a one-line tagline
+  added to login/signup since those pages had zero brand presence beyond the
+  Nav wordmark.
+- **Verified with real seeded data** (throwaway user + connection + 5
+  workflows covering all four health states, direct DB inserts — same
+  precedent as Phase 8) via a scratch Playwright install (cached chromium
+  reused, same "install then discard" precedent as Phases 6/8/9), desktop and
+  mobile (390px) viewports. Confirmed: failing pill renders with legible
+  white text, silent pill's black text still passes, sub-nav active states
+  render correctly on all three pages, long workflow names wrap without
+  crowding their status badge on both viewport sizes, the inline confirm
+  pattern works. Zero `pageerror`s; the only console noise was the same
+  benign unauthenticated-`/auth/me`-probe 401 noted in every prior phase's
+  testing.
+- **Responsive/touch-target pass (added later, still part of this same
+  uncommitted phase)** — done via `/impeccable adapt`, scoped to layout/
+  breakpoints/touch targets only (the color/type tokens stayed locked in):
+  - **Real overflow bug fixed**: a long `n8n_base_url` (this app's most
+    common piece of real content — every connection is identified by one)
+    had no wrap protection anywhere it's rendered as a single unbroken mono
+    string — the dashboard's connection-list row (`app/page.tsx`) and the
+    connection-detail `<h1>` (`app/connections/[id]/page.tsx`). Fixed with
+    `min-w-0` + `break-all` on both, mirroring the `min-w-0`/`flex-none`
+    pattern already used for long workflow names above. Confirmed via a
+    real `scrollWidth > clientWidth` check in Playwright at 320/375/768/1440px
+    that this was a genuine horizontal-overflow bug pre-fix, not a
+    theoretical one.
+  - **`Nav.tsx`**: long account emails could collide with "Log out" on
+    narrow screens (no `min-w-0`/`truncate` previously) — fixed with
+    `min-w-0 truncate` + a `title` attribute so the full address is still
+    available on hover/long-press. Reduced nav padding (`px-4 sm:px-6`) and
+    gap (`gap-3 sm:gap-4`) for small screens.
+  - **Touch targets**: `Nav.tsx`'s plain-text links/button (Log out, Log
+    in, Sign up, the account-email link), `ConnectionSubNav.tsx`'s tabs,
+    and the workflow-detail page's "← Back to workflows" link had no
+    vertical hit-area padding at all — their clickable box was just the
+    text's own line-height (~20px), well under a comfortable tap target,
+    even though they visually sit inside a taller bar. Fixed with
+    `py-1.5 pointer-coarse:py-3` (Tailwind v4's native `pointer-coarse:`
+    media variant) so desktop/mouse density is completely unchanged but
+    touch devices get a real ~44px hit area. Same `pointer-coarse:min-h-11
+    pointer-coarse:px-4` treatment applied to the small
+    (`px-3 py-1.5 text-xs`) buttons that don't go through this pattern
+    automatically: `ConfirmButton.tsx`'s inline Cancel/confirm pair, the
+    workflow-detail page's Generate/Regenerate button, and the alerts
+    page's All/Open/Resolved filter pills. Verified the 44px floor actually
+    applies via `getComputedStyle` in a touch-emulated (`devices['iPhone
+    12']`) Playwright context, not just by reading the CSS.
+  - **Workflow-detail stat-card grid** (`grid-cols-2` → `grid-cols-1
+    sm:grid-cols-2`) — a structural mobile breakpoint per the product
+    register's "responsive behavior is structural, not fluid typography"
+    guidance, rather than just letting two cramped columns survive on a
+    narrow phone.
+  - Verified end-to-end with a second throwaway-seed-then-discard pass
+    (same direct-DB-insert precedent as above, one connection with a
+    deliberately ~95-character base URL and one workflow with a
+    deliberately ~115-character name) across 320/375/768/1440px via
+    Playwright screenshots plus the `scrollWidth`/`clientWidth` overflow
+    check on every page at every width. Zero horizontal overflow, zero
+    `pageerror`s, after the fix (confirmed the dashboard/connection-detail
+    overflow bug above existed before it).
+- **`npx tsc --noEmit`, `npm run lint`, and `impeccable detect` are all clean**
+  after every change in this phase, including the later responsive pass.
+
+**Important side-discovery, not part of the original ask**: while debugging
+intermittent hangs during this phase's browser testing, found that
+`apps/api/.env`'s `DATABASE_URL` was pointed at the **production Neon
+database**, not local Docker Postgres on port 5433 as this file's own
+"Environment / how to run locally" section documents. Unclear when this
+drifted or why — it wasn't changed during this session before being
+discovered partway through. Consequences and what was done:
+  - The already-running local `uvicorn` dev server had been talking to
+    production this whole time (its in-process scheduler was redundantly
+    re-syncing real connections alongside whatever's running on Render — the
+    same "duplicate scheduler tick" class of issue already documented above
+    under "Scheduler", just via a local process instead of multiple Render
+    workers; alert dedup should have prevented any duplicate emails).
+  - A throwaway demo user/connection/workflows created for this phase's
+    screenshot testing landed in **production**, not a local throwaway DB as
+    intended (matching every prior phase's "seed throwaway data, screenshot,
+    delete" precedent — the precedent itself wasn't the problem, the target
+    database was). Found via repeated, unexplained request hangs that didn't
+    reproduce when called directly (not through a browser) — eventually
+    traced to `DATABASE_URL`, not a code bug. **Verified deleted** (the demo
+    user + everything cascaded from it) from production immediately on
+    discovery.
+  - Stopped the local API server as a precaution, asked the user how to
+    proceed (`AskUserQuestion`), and per their answer: pointed
+    `apps/api/.env`'s `DATABASE_URL` back to local Postgres
+    (`postgresql://watchdog:watchdog@localhost:5433/watchdog`, matching
+    `docker-compose.yml`'s credentials), ran `alembic upgrade head` (local
+    Postgres was stuck at an old revision, `45596c4ef0fd` from Phase 4 —
+    confirming it genuinely hadn't been used in a while), and restarted the
+    local server. Re-seeded/re-verified/re-deleted throwaway data against the
+    now-correct local DB afterward.
+  - The intermittent hangs themselves were almost certainly Neon's serverless
+    compute auto-suspending after idle and taking several seconds to resume on
+    the next query — not a bug in any code changed this phase. **If a future
+    session hits a mysterious hang on a DB-touching endpoint that doesn't
+    reproduce via a direct HTTP client call, check `apps/api/.env`'s
+    `DATABASE_URL` first** before assuming it's a code issue.
+  - Real user data was not touched beyond the redundant (idempotent) sync
+    reads/writes the scheduler already does on its own normal schedule.
+
+Not done yet / immediate next steps:
+- DESIGN.md's status-palette section still documents the now-removed
+  `orphaned` status (Phase 11 already flagged this, still just a doc-drift
+  cosmetic issue).
+- No keyboard-shortcut/command-palette layer for power users — a real gap for
+  the "technical operator" persona but treated as a v2 feature, not part of
+  this polish pass.
+- Everything carried over from Phase 11 below (Resend domain, multi-worker
+  scheduler) is still open and unrelated to this phase.
 
 ### Phase 11 — done
 

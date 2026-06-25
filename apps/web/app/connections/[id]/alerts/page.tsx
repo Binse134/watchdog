@@ -7,6 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth-context";
 import { formatDate } from "@/lib/format";
 import type { Alert } from "@/lib/types";
+import ConnectionSubNav from "@/components/ConnectionSubNav";
 import StatusBadge from "@/components/StatusBadge";
 
 type Filter = "all" | "open" | "resolved";
@@ -19,6 +20,10 @@ export default function AlertsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.title = "Alerts · Watchdog";
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -41,21 +46,16 @@ export default function AlertsPage() {
 
   return (
     <div className="max-w-3xl mx-auto mt-12 px-4">
-      <Link
-        href={`/connections/${connectionId}`}
-        className="focus-ring rounded-[4px] text-sm text-muted transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] hover:text-accent"
-      >
-        ← Back to workflows
-      </Link>
+      <ConnectionSubNav connectionId={connectionId} />
 
-      <h1 className="mt-4 mb-4 text-2xl font-semibold tracking-[-0.01em] text-ink">Alerts</h1>
+      <h1 className="mb-4 text-2xl font-semibold tracking-[-0.01em] text-ink">Alerts</h1>
 
       <div className="mb-6 inline-flex gap-1 rounded-[6px] border border-hairline bg-panel p-1 text-sm">
         {(["all", "open", "resolved"] as Filter[]).map((f) => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`focus-ring cursor-pointer rounded-[4px] px-3 py-1.5 font-mono text-xs transition-colors duration-150 [transition-timing-function:var(--ease-out-expo)] ${
+            className={`focus-ring cursor-pointer rounded-[4px] px-3 py-1.5 font-mono text-xs transition-[background-color,color,transform] duration-150 [transition-timing-function:var(--ease-out-expo)] active:scale-[0.95] pointer-coarse:min-h-11 pointer-coarse:px-4 ${
               filter === f ? "bg-primary text-[#0a0a0a]" : "text-muted hover:text-ink"
             }`}
           >
@@ -64,7 +64,11 @@ export default function AlertsPage() {
         ))}
       </div>
 
-      {error && <p className="mb-4 text-sm text-failing">{error}</p>}
+      {error && (
+        <p role="alert" className="mb-4 text-sm text-failing">
+          {error}
+        </p>
+      )}
 
       {!alerts && !error && <p className="text-sm text-muted">Loading…</p>}
 
@@ -72,16 +76,22 @@ export default function AlertsPage() {
 
       {alerts && alerts.length > 0 && (
         <div className="flex flex-col gap-2">
-          {alerts.map((alert) => (
-            <div key={alert.id} className="rounded-[10px] border border-hairline bg-panel px-4 py-3">
-              <div className="mb-1 flex items-center justify-between gap-4">
+          {alerts.map((alert, i) => (
+            <div
+              key={alert.id}
+              className="animate-enter rounded-[10px] border border-hairline bg-panel px-4 py-3"
+              style={{ animationDelay: `${Math.min(i, 8) * 25}ms` }}
+            >
+              <div className="mb-1 flex items-start justify-between gap-4">
                 <Link
                   href={`/connections/${connectionId}/workflows/${alert.workflow_id}`}
-                  className="focus-ring rounded-[4px] text-sm font-medium text-ink hover:underline"
+                  className="focus-ring min-w-0 rounded-[4px] text-sm font-medium text-ink hover:underline"
                 >
                   {alert.workflow_name}
                 </Link>
-                <StatusBadge status={alert.alert_type} />
+                <span className="flex-none">
+                  <StatusBadge status={alert.alert_type} />
+                </span>
               </div>
               <p className="font-mono text-xs text-muted">
                 Triggered {formatDate(alert.triggered_at)} ·{" "}
