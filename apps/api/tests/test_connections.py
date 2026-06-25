@@ -229,6 +229,72 @@ def test_alerts_endpoint_filters_by_resolved(client, monkeypatch, db):
     assert len(resolved_alerts) == 1
 
 
+def test_resolve_alert_endpoint_marks_resolved_manually(client, monkeypatch, db):
+    _signup(client)
+    _patch_create_client(monkeypatch, OkClient)
+    created = client.post("/connections", json={"n8n_base_url": "http://localhost:5678", "api_key": "key"}).json()
+
+    class FakeSyncClient(OkClient):
+        def list_workflows(self):
+            return [{"id": "1", "name": "Wf", "active": True}]
+
+        def list_executions(self, workflow_id, since=None):
+            return []
+
+    monkeypatch.setattr("app.sync.N8nClient", FakeSyncClient)
+    client.post(f"/connections/{created['id']}/sync")
+    workflow_id = client.get(f"/connections/{created['id']}/workflows").json()[0]["id"]
+
+    from app.alerts import evaluate_workflow
+    from app.models import Workflow
+    import uuid
+
+    workflow = db.get(Workflow, uuid.UUID(workflow_id))
+    monkeypatch.setattr("app.alerts.send_email", lambda *a, **k: None)
+    evaluate_workflow(db, workflow, "failing")
+
+    alert_id = client.get(f"/connections/{created['id']}/alerts", params={"resolved": "false"}).json()[0]["id"]
+
+    response = client.post(f"/connections/{created['id']}/alerts/{alert_id}/resolve")
+    assert response.status_code == 200
+    assert response.json()["resolved_at"] is not None
+
+    open_alerts = client.get(f"/connections/{created['id']}/alerts", params={"resolved": "false"}).json()
+    assert open_alerts == []
+
+
+def test_resolve_alert_endpoint_404_for_alert_on_other_users_connection(client, monkeypatch, db):
+    _signup(client, email="owner@example.com")
+    _patch_create_client(monkeypatch, OkClient)
+    created = client.post("/connections", json={"n8n_base_url": "http://localhost:5678", "api_key": "key"}).json()
+
+    class FakeSyncClient(OkClient):
+        def list_workflows(self):
+            return [{"id": "1", "name": "Wf", "active": True}]
+
+        def list_executions(self, workflow_id, since=None):
+            return []
+
+    monkeypatch.setattr("app.sync.N8nClient", FakeSyncClient)
+    client.post(f"/connections/{created['id']}/sync")
+    workflow_id = client.get(f"/connections/{created['id']}/workflows").json()[0]["id"]
+
+    from app.alerts import evaluate_workflow
+    from app.models import Workflow
+    import uuid
+
+    workflow = db.get(Workflow, uuid.UUID(workflow_id))
+    monkeypatch.setattr("app.alerts.send_email", lambda *a, **k: None)
+    evaluate_workflow(db, workflow, "failing")
+    alert_id = client.get(f"/connections/{created['id']}/alerts", params={"resolved": "false"}).json()[0]["id"]
+
+    client.post("/auth/logout")
+    _signup(client, email="intruder@example.com")
+
+    response = client.post(f"/connections/{created['id']}/alerts/{alert_id}/resolve")
+    assert response.status_code == 404
+
+
 def test_summary_endpoint_generates_and_caches(client, monkeypatch):
     _signup(client)
     _patch_create_client(monkeypatch, OkClient)

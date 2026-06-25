@@ -275,6 +275,46 @@ def list_alerts(
     ]
 
 
+@router.post("/{connection_id}/alerts/{alert_id}/resolve", response_model=AlertOut)
+def resolve_alert(
+    connection_id: uuid.UUID,
+    alert_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Manually marks an open alert as resolved, for when the user already
+    fixed the workflow in n8n and doesn't want to wait for the next sync's
+    automatic re-evaluation to clear it. If the workflow is still actually
+    failing, the next check cycle just reopens a new alert - this never
+    touches health_status itself, which stays computed live from real
+    execution data (see app/health.py)."""
+    connection = _get_owned_connection(db, user, connection_id)
+    alert = (
+        db.query(Alert)
+        .join(Workflow)
+        .filter(Alert.id == alert_id, Workflow.connection_id == connection.id)
+        .one_or_none()
+    )
+    if not alert:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Alert not found")
+
+    if alert.resolved_at is None:
+        alert.resolved_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(alert)
+
+    return AlertOut(
+        id=alert.id,
+        workflow_id=alert.workflow_id,
+        workflow_name=alert.workflow.name,
+        alert_type=alert.alert_type,
+        triggered_at=alert.triggered_at,
+        resolved_at=alert.resolved_at,
+        email_sent_at=alert.email_sent_at,
+        email_error=alert.email_error,
+    )
+
+
 @router.post("/{connection_id}/workflows/{workflow_id}/summary", response_model=WorkflowSummaryOut)
 def regenerate_workflow_summary(
     connection_id: uuid.UUID,

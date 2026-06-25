@@ -27,12 +27,11 @@ def compute_health_status(workflow: Workflow, counts: WorkflowCounts) -> str:
     (see app/sync.py's _delete_orphaned_workflows) rather than represented
     as a status here.
 
-    TEMPORARY: the `workflow.enabled` (n8n "active") check is disabled here
-    so manually-run, unpublished workflows still get evaluated/alerted on
-    during testing. Re-add `or not workflow.enabled` to the condition below
-    once testing is done, to go back to excluding unpublished workflows.
+    A disabled (n8n "inactive") workflow is always unused, regardless of
+    its run history - it's not meant to be running, so it's not worth
+    alerting on.
     """
-    if counts.run_count_30d == 0:
+    if counts.run_count_30d == 0 or not workflow.enabled:
         return UNUSED
     if counts.run_count_7d == 0:
         return SILENT

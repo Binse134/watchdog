@@ -7,7 +7,7 @@ import { api, ApiError } from "@/lib/api";
 import { useRequireAuth } from "@/lib/auth-context";
 import { formatDate } from "@/lib/format";
 import type { Alert } from "@/lib/types";
-import ConnectionSubNav from "@/components/ConnectionSubNav";
+import Button from "@/components/Button";
 import StatusBadge from "@/components/StatusBadge";
 
 type Filter = "all" | "open" | "resolved";
@@ -20,6 +20,7 @@ export default function AlertsPage() {
   const [filter, setFilter] = useState<Filter>("all");
   const [alerts, setAlerts] = useState<Alert[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   useEffect(() => {
     document.title = "Alerts · Watchdog";
@@ -42,12 +43,29 @@ export default function AlertsPage() {
     };
   }, [user, connectionId, filter]);
 
+  async function handleResolve(alertId: string) {
+    setResolvingId(alertId);
+    setError(null);
+    try {
+      const resolved = await api.post<Alert>(`/connections/${connectionId}/alerts/${alertId}/resolve`);
+      setAlerts((prev) => {
+        if (!prev) return prev;
+        // "open" filter excludes it now that it's resolved; the others just
+        // reflect its updated resolved_at in place.
+        if (filter === "open") return prev.filter((a) => a.id !== alertId);
+        return prev.map((a) => (a.id === alertId ? resolved : a));
+      });
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Could not resolve this alert");
+    } finally {
+      setResolvingId(null);
+    }
+  }
+
   if (loading || !user) return null;
 
   return (
-    <div className="max-w-3xl mx-auto mt-12 px-4">
-      <ConnectionSubNav connectionId={connectionId} />
-
+    <>
       <h1 className="mb-4 text-2xl font-semibold tracking-[-0.01em] text-ink">Alerts</h1>
 
       <div className="mb-6 inline-flex gap-1 rounded-[6px] border border-hairline bg-panel p-1 text-sm">
@@ -104,10 +122,20 @@ export default function AlertsPage() {
                     ? `Email not sent: ${alert.email_error}`
                     : "Email pending"}
               </p>
+              {!alert.resolved_at && (
+                <Button
+                  variant="ghost"
+                  onClick={() => handleResolve(alert.id)}
+                  disabled={resolvingId === alert.id}
+                  className="mt-3 px-3 py-1.5 text-xs"
+                >
+                  {resolvingId === alert.id ? "Resolving..." : "Resolve"}
+                </Button>
+              )}
             </div>
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

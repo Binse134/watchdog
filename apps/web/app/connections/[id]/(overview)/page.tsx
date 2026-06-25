@@ -8,8 +8,20 @@ import { useRequireAuth } from "@/lib/auth-context";
 import { formatDate, pluralize } from "@/lib/format";
 import type { Connection, Workflow } from "@/lib/types";
 import Button from "@/components/Button";
-import ConnectionSubNav from "@/components/ConnectionSubNav";
 import StatusBadge from "@/components/StatusBadge";
+
+// Failing workflows are the ones that need attention, so they sort first;
+// everything else keeps a sensible attention order behind them.
+const HEALTH_PRIORITY: Record<Workflow["health_status"], number> = {
+  failing: 0,
+  silent: 1,
+  healthy: 2,
+  unused: 3,
+};
+
+function byHealthPriority(a: Workflow, b: Workflow) {
+  return HEALTH_PRIORITY[a.health_status] - HEALTH_PRIORITY[b.health_status];
+}
 
 async function fetchConnectionAndWorkflows(connectionId: string) {
   const [connection, workflows] = await Promise.all([
@@ -80,9 +92,7 @@ export default function ConnectionPage() {
   if (loading || !user) return null;
 
   return (
-    <div className="max-w-4xl mx-auto mt-12 px-4">
-      <ConnectionSubNav connectionId={connectionId} />
-
+    <>
       <h1 className="mb-2 break-all font-mono text-2xl font-semibold tracking-[-0.01em] text-ink">
         {connection?.n8n_base_url ?? "Connection"}
       </h1>
@@ -112,7 +122,7 @@ export default function ConnectionPage() {
 
       {workflows && workflows.length > 0 && (
         <div className="flex flex-col gap-2">
-          {workflows.map((wf, i) => (
+          {[...workflows].sort(byHealthPriority).map((wf, i) => (
             <Link
               key={wf.id}
               href={`/connections/${connectionId}/workflows/${wf.id}`}
@@ -138,6 +148,6 @@ export default function ConnectionPage() {
           ))}
         </div>
       )}
-    </div>
+    </>
   );
 }

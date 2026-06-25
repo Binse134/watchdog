@@ -8,7 +8,6 @@ import type { Connection } from "@/lib/types";
 import Button from "@/components/Button";
 import Card from "@/components/Card";
 import ConfirmButton from "@/components/ConfirmButton";
-import ConnectionSubNav from "@/components/ConnectionSubNav";
 import Input from "@/components/Input";
 
 export default function ConnectionSettingsPage() {
@@ -76,9 +75,7 @@ export default function ConnectionSettingsPage() {
   if (loading || !user) return null;
 
   return (
-    <div className="max-w-sm mx-auto mt-12 px-4">
-      <ConnectionSubNav connectionId={connectionId} />
-
+    <div className="max-w-sm">
       <h1 className="mb-6 text-2xl font-semibold tracking-[-0.01em] text-ink">Settings</h1>
 
       <form onSubmit={handleSave} className="mb-10 flex flex-col gap-3">
